@@ -153,6 +153,7 @@ test_that("empty Rmd", {
 })
 
 test_that("inline html", {
+  skip("isolate issue")
   skip_if_not(rmarkdown::pandoc_available())
 
   tmp <- tempfile(fileext = ".md")
@@ -255,3 +256,5 @@ test_that("order of sections is correct", {
   out1 <- roc_proc_text(rd_roclet(), rox)[[1]]
   expect_match(format(out1), "Rmd.*After.*After2")
 })
+
+test_that("trigger unused connections warning", testthat::fail())
