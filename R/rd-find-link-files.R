@@ -45,8 +45,8 @@ find_topic_filename <- function(pkg, topic, tag = NULL) {
 find_topic_in_package <- function(pkg, topic) {
   # This is needed because we have the escaped text here, and parse_Rd will
   # un-escape it properly.
-  on.exit(close(con), add = TRUE, after = FALSE)
   con <- textConnection(topic)
+  on.exit(close(con), add = TRUE, after = FALSE)
   raw_topic <- str_trim(tools::parse_Rd(con)[[1]][1])
   basename(utils::help((raw_topic), (pkg))[1])
 }
