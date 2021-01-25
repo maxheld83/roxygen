@@ -28,47 +28,102 @@ topic_add_describe_in <- function(topic, block, env) {
     return()
 
   topic$add(rd_section_minidesc(
-    label$type,
-    label$label,
-    tag$val$description
+    df = subsection(label = label$label, desc = tag$val$description),
+    method = label$method,
+    generic = label$generic
   ))
   dest$topic
 }
 
 # Field -------------------------------------------------------------------
 
-rd_section_minidesc <- function(type, label, desc) {
-  stopifnot(is.character(type), is.character(label), is.character(desc))
-  stopifnot(length(desc) == length(label))
-
-  rd_section("minidesc", list(type = type, desc = desc, label = label))
+#' Record data for minidescription sections from `@describeIn`
+#' @param df a dataframe as created by [subsection()].
+#' @param method giving whether method generic a generic (S3 or S4)
+#' @param generic Name of the generic in the destination the method generic, otherwise empty string (`""`).
+#' @noRd
+rd_section_minidesc <- function(df, method = FALSE, generic = "") {
+  stopifnot(is_scalar_logical(method))
+  stopifnot(is_scalar_character(generic))
+  data <- cbind(
+    method = method,
+    generic = generic,
+    df, 
+    stringsAsFactors = FALSE
+  )
+  rd_section(
+    "minidesc",
+    data
+  )
 }
 
 #' @export
 merge.rd_section_minidesc <- function(x, y, ...) {
   stopifnot(identical(class(x), class(y)))
-  stopifnot(identical(x$value$type, y$value$type))
-  rd_section_minidesc(
-    x$value$type,
-    label = c(x$value$label, y$value$label),
-    desc = c(x$value$desc, y$value$desc)
+  rd_section(
+    "minidesc",
+    rbind(x$value, y$value, stringsAsFactors = FALSE)
   )
 }
 
 #' @export
 format.rd_section_minidesc <- function(x, ...) {
-  title <- switch(x$value$type,
-    generic = "Methods (by class)",
-    class = "Methods (by generic)",
-    "function" = "Functions"
-  )
+  section_title <- "Related Functions and Methods"
 
+  groups <- unique(x$value[, c("method", "generic")])
+  out <- purrr::map2_chr(groups$method, groups$generic, function(method, generic) {
+    if (method) {
+      subsection_title <- "Methods extending"
+      if (generic == "") {
+        subsection_title <- paste0(subsection_title, " other generics (by generic):")
+      } else {
+        subsection_title <- paste0(
+          subsection_title,
+          " \\code{",
+          escape(generic),
+          "} generic (by class):"
+        )
+      }
+    } else {
+      subsection_title <- "Functions"
+    }
+    df <- x$value
+    subsection_body <- format_subsection(
+      df[df$method == method & df$generic == generic, c("label", "desc")]
+    )
+    paste0(
+      "\\subsection{", subsection_title, "}{\n",
+      subsection_body,
+      "}\n"
+    )
+  })
   paste0(
-    "\\section{", title, "}{\n",
+    "\\section{", section_title, "}{\n",
+    paste0(out, collapse = "\n"),
+    "}\n"
+  )
+}
+
+subsection <- function(label, desc) {
+  stopifnot(is_character(label), is_character(desc))
+  stopifnot(length(label) == length(desc))
+  data.frame(
+    stringsAsFactors = FALSE,
+    label = label,
+    desc = desc
+  )
+}
+
+format_subsection <- function(df) {
+  paste0(
     "\\itemize{\n",
-    paste0("\\item \\code{", escape(x$value$label), "}: ", x$value$desc,
-      collapse = "\n\n"),
-    "\n}}\n"
+    paste0(
+      "\\item \\code{",
+      escape(df$label),
+      "}: ", df$desc,
+      collapse = "\n"
+    ),
+    "\n}\n"
   )
 }
 
@@ -90,33 +145,45 @@ find_object <- function(name, env) {
 build_label <- function(src, dest, block) {
   src_type <- class(src)[1]
   dest_type <- class(dest)[1]
+  dest_name <- as.character(dest$topic)
 
-  if (dest_type == "s4class" && src_type == "s4method") {
-    # Label S4 methods in class with their generic
-    type <- "class"
-    label <- as.character(src$value@generic)
-  } else if (dest_type == "s4generic" && src_type == "s4method") {
-    # Label S4 methods in generic with their signature
-    type <- "generic"
-    sig <- src$value@defined
-    if (length(sig) == 1) {
-      label <- as.character(sig)
-    } else {
-      label <- paste0(names(sig), " = ", sig, collapse = ",")
+  # default to fallback: function + topic
+  method <- FALSE
+  generic <- ""
+  label <- src$topic
+
+  if (src_type == "s3method") {
+    if (dest_type == "s3generic" && attr(src$value, "s3method")[1] == dest_name) {
+      # applies only to those methods which actually extend the generic in dest
+      method <- TRUE
+      generic <- dest_name
+      label <- attr(src$value, "s3method")[2]
+    } else if (attr(src$value, "s3method")[2] == dest_name) {
+      # assuming that dest is class constructor, when class == dest name
+      # no formal check for S3 constructor is possible
+      method <- TRUE
+      generic <- ""
+      label <- attr(src$value, "s3method")[1]
     }
-  } else if (dest_type == "function" && src_type == "s3method") {
-    # Assuming you document S3 methods in the class constructor
-    type <- "class"
-    label <- attr(src$value, "s3method")[1]
-  } else if (dest_type == "s3generic" && src_type == "s3method") {
-    # Label S3 methods in generic with their class
-    type <- "generic"
-    label <- attr(src$value, "s3method")[2]
-  } else {
-    # Otherwise just fallback to function + topic
-    type <- "function"
-    label <- src$topic
+  } else if (src_type == "s4method") {
+    if (dest_type == "s4class") {
+      # Label S4 methods in class with their generic
+      method <- TRUE
+      generic <- ""
+      label <- src$value@generic
+    } else if (dest_type == "s4generic") {
+      # Label S4 methods in generic with their signature
+      method <- TRUE
+      generic <- dest_name
+      sig <- src$value@defined
+      if (length(sig) == 1) {
+        label <- sig
+      } else {
+        label <- paste0(names(sig), " = ", sig, collapse = ",")
+      }
+    }
   }
+  label <-  as.character(label)
 
-  list(type = type, label = label)
+  list(method = method, generic = generic, label = label)
 }

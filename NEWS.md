@@ -4,6 +4,9 @@
   are applied (#1179). This change alters outputs and brings roxygen in line
   in line with console and R markdown behavior. `x <- "foo"` no longer inserts
   anything to the resulting documentation, but `x <- "foo"; x` will.
+* `@describeIn` can be used to combine multiple types of functions
+  (generics, methods and other functions) into a `*.Rd` documentation file.
+  The resulting minidescription section organises the functions by type (#1181).
 
 * The new `@exmaplesIf` tag can be used to create conditional
   examples. These examples only run if a specified condition
