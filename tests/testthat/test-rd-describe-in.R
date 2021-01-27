@@ -155,7 +155,7 @@ test_that(
     expect_equal(out$get_value("minidesc")$method, c(TRUE, TRUE, FALSE, FALSE))
     expect_equal(out$get_value("minidesc")$generic, rep("", 4))
     expect_equal(
-      out$get_value("minidesc")$label, 
+      out$get_value("minidesc")$label,
       c("print", "format", "format.bar", "is_foo")
     )
   }
