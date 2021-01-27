@@ -9,6 +9,8 @@
   The resulting minidescription section organises the functions by type (#1181).
   with console and R markdown behavior. `x <- "foo"` no longer inserts anything
   into the resulting documentation, but `x <- "foo"; x` will.
+  Methods are recognized only if they extend the generic in the destination,
+  or if the destination can heuristically be identified as a constructor.
 
 * The new `@exmaplesIf` tag can be used to create conditional
   examples. These examples only run if a specified condition
